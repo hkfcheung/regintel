@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Worker, Queue, QueueEvents } from "bullmq";
 import IORedis from "ioredis";
 

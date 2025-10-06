@@ -187,57 +187,127 @@ export class AutonomousDiscoveryService {
   }
 
   /**
-   * Discover FDA documents using known patterns
+   * Discover FDA documents using known patterns and site search
    */
   private async discoverFdaDocuments(): Promise<string[]> {
     const urls: string[] = [];
 
-    // Known FDA RSS feeds for pediatric oncology
-    const fdaFeeds = [
-      "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/drugs/rss.xml",
-      "https://www.fda.gov/about-fda/contact-fda/stay-informed/rss-feeds/oncology-center-excellence/rss.xml",
+    // 1. Use Google to search FDA site for recent pediatric oncology content
+    const searchQueries = [
+      "site:fda.gov pediatric oncology approval",
+      "site:fda.gov children cancer drug approval",
+      "site:fda.gov pediatric leukemia treatment",
+      "site:fda.gov adolescent cancer therapy",
     ];
 
-    // Fetch RSS feeds to find recent documents
-    const { SourceReaderService } = await import("./sourceReader.js");
-    const sourceReader = new SourceReaderService();
-
-    for (const feedUrl of fdaFeeds) {
+    for (const query of searchQueries) {
       try {
-        const items = await sourceReader.fetchRssFeed(feedUrl);
-
-        // Filter for pediatric oncology keywords
-        const pediatricKeywords = [
-          "pediatric",
-          "children",
-          "adolescent",
-          "infant",
-          "leukemia",
-          "lymphoma",
-          "neuroblastoma",
-          "sarcoma",
-          "brain tumor",
-        ];
-
-        for (const item of items) {
-          const titleLower = item.title.toLowerCase();
-          if (pediatricKeywords.some((keyword) => titleLower.includes(keyword))) {
-            urls.push(item.url);
-          }
-        }
+        console.log(`[Discovery] Searching Google for: ${query}`);
+        const searchUrls = await this.searchGoogleForFda(query);
+        urls.push(...searchUrls);
       } catch (error) {
-        console.error(`[Discovery] Failed to fetch FDA feed ${feedUrl}:`, error);
+        console.error(`[Discovery] Failed Google search for "${query}":`, error);
       }
     }
 
-    // Also check known FDA approval pages
-    const approvalUrls = [
+    // 2. Check known FDA approval pages directly
+    const knownPages = [
       "https://www.fda.gov/drugs/resources-information-approved-drugs/hematologyoncology-cancer-approvals-safety-notifications",
+      "https://www.fda.gov/drugs/resources-information-approved-drugs/pediatric-oncology-drug-approvals",
+      "https://www.fda.gov/about-fda/oncology-center-excellence/pediatric-oncology",
     ];
 
-    urls.push(...approvalUrls);
+    for (const pageUrl of knownPages) {
+      try {
+        console.log(`[Discovery] Checking known page: ${pageUrl}`);
+        const pageUrls = await this.scrapeLinksFromPage(pageUrl);
+        urls.push(...pageUrls);
+      } catch (error) {
+        console.error(`[Discovery] Failed to scrape ${pageUrl}:`, error);
+      }
+    }
 
     return [...new Set(urls)]; // Deduplicate
+  }
+
+  /**
+   * Search Google for FDA site content
+   */
+  private async searchGoogleForFda(query: string): Promise<string[]> {
+    const urls: string[] = [];
+
+    try {
+      // Use Google Custom Search API or scrape results
+      // For now, we'll use a simple HTML scraping approach
+      const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=20`;
+
+      const response = await fetch(searchUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`[Discovery] Google search failed: ${response.status}`);
+        return urls;
+      }
+
+      const html = await response.text();
+
+      // Extract FDA URLs from Google results
+      // Look for patterns like: /url?q=https://www.fda.gov/...
+      const urlRegex = /\/url\?q=(https?:\/\/www\.fda\.gov[^&"']+)/g;
+      let match;
+      while ((match = urlRegex.exec(html)) !== null) {
+        const url = decodeURIComponent(match[1]);
+        if (url.includes("/drugs/") || url.includes("/oncology")) {
+          urls.push(url);
+        }
+      }
+
+      console.log(`[Discovery] Found ${urls.length} FDA URLs from Google`);
+    } catch (error) {
+      console.error(`[Discovery] Error searching Google:`, error);
+    }
+
+    return urls;
+  }
+
+  /**
+   * Scrape links from an FDA page
+   */
+  private async scrapeLinksFromPage(pageUrl: string): Promise<string[]> {
+    const urls: string[] = [];
+
+    try {
+      const response = await fetch(pageUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        },
+      });
+
+      if (!response.ok) {
+        console.warn(`[Discovery] Failed to fetch ${pageUrl}: ${response.status}`);
+        return urls;
+      }
+
+      const html = await response.text();
+
+      // Extract links to drug approval pages
+      const linkRegex = /href="(\/drugs\/[^"]+(?:approval|guidance|pediatric)[^"]*)"/gi;
+      let match;
+      while ((match = linkRegex.exec(html)) !== null) {
+        const path = match[1];
+        const fullUrl = `https://www.fda.gov${path}`;
+        urls.push(fullUrl);
+      }
+
+      console.log(`[Discovery] Found ${urls.length} links from ${pageUrl}`);
+    } catch (error) {
+      console.error(`[Discovery] Error scraping page:`, error);
+    }
+
+    return urls;
   }
 
   /**
