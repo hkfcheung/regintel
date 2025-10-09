@@ -65,6 +65,21 @@ const processDiscoveryJob = async (job: any) => {
   return result;
 };
 
+const processAlertsJob = async (job: any) => {
+  console.log(`Processing alerts job ${job.id}:`, job.data);
+
+  const { processAllDueAlerts } = await import("./services/alertService.js");
+  const result = await processAllDueAlerts();
+
+  console.log(`Alerts processed: ${result.processed}, errors: ${result.errors.length}`);
+
+  if (result.errors.length > 0) {
+    console.error("Alert processing errors:", result.errors);
+  }
+
+  return result;
+};
+
 // Workers
 const ingestWorker = new Worker("ingest", processIngestJob, {
   connection,
@@ -87,6 +102,11 @@ const rssPollWorker = new Worker("rss-poll", processRssPollJob, {
 });
 
 const discoveryWorker = new Worker("discovery", processDiscoveryJob, {
+  connection,
+  concurrency: 1,
+});
+
+const alertsWorker = new Worker("alerts", processAlertsJob, {
   connection,
   concurrency: 1,
 });
@@ -132,12 +152,21 @@ discoveryWorker.on("failed", (job, err) => {
   console.error(`Discovery job ${job?.id} failed:`, err);
 });
 
+alertsWorker.on("completed", (job) => {
+  console.log(`Alerts job ${job.id} completed`);
+});
+
+alertsWorker.on("failed", (job, err) => {
+  console.error(`Alerts job ${job?.id} failed:`, err);
+});
+
 console.log("BullMQ workers started");
 console.log("- Ingest worker (concurrency: 5)");
 console.log("- Summarize worker (concurrency: 3)");
 console.log("- Publish worker (concurrency: 1)");
 console.log("- RSS poll worker (concurrency: 1)");
 console.log("- Discovery worker (concurrency: 1)");
+console.log("- Alerts worker (concurrency: 1)");
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
@@ -147,6 +176,7 @@ process.on("SIGTERM", async () => {
     publishWorker.close(),
     rssPollWorker.close(),
     discoveryWorker.close(),
+    alertsWorker.close(),
   ]);
   await connection.quit();
   process.exit(0);

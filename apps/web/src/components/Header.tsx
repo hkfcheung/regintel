@@ -92,6 +92,12 @@ export async function Header() {
                   <div className="text-gray-500 text-xs">
                     {session.user.role}
                   </div>
+                  <Link
+                    href="/alerts"
+                    className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
+                  >
+                    My Alerts
+                  </Link>
                 </div>
                 <form
                   action={async () => {

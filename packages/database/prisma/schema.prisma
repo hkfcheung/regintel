@@ -30,6 +30,7 @@ model User {
   publications   Publication[]
   auditLogs      AuditLog[]
   searchSessions SearchSession[]
+  alerts         UserAlert[]
 
   @@map("users")
 }
@@ -278,4 +279,54 @@ enum RssFeedClassification {
   GUIDANCE
   SAFETY_ALERT
   OTHER
+}
+
+// ============================================
+// Application Configuration
+// ============================================
+
+model AppConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  category  String   // e.g., "filtering", "analysis", "general"
+  label     String   // Human-readable label
+  helpText  String?  // Description for admin UI
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("app_config")
+}
+
+// ============================================
+// User Alerts & Notifications
+// ============================================
+
+model UserAlert {
+  id             String            @id @default(cuid())
+  userId         String
+  name           String
+  filters        Json              @default("[]") // Array of filter objects {type, value}
+  maxPosts       Int               @default(30)
+  frequency      AlertFrequency
+  daysOfWeek     Int[]             // 0=Sun, 1=Mon, 2=Tue, etc.
+  timeOfDay      String            // HH:mm format (e.g., "10:00")
+  active         Boolean           @default(true)
+  lastSentAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([active])
+  @@index([lastSentAt])
+  @@map("user_alerts")
+}
+
+enum AlertFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
 }
