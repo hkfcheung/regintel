@@ -96,16 +96,19 @@ model SourceItem {
   contentHash     String      @unique
   status          ItemStatus  @default(INTAKE)
   raindropId      String?     @unique
+  rssFeedId       String?     // Track which RSS feed ingested this item
   tags            Json        @default("[]") // Array of strings
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
   analyses Analysis[]
   reviews  Review[]
+  rssFeed  RssFeed?   @relation(fields: [rssFeedId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([publishedAt])
   @@index([sourceDomain])
+  @@index([rssFeedId])
   @@map("source_items")
 }
 
@@ -262,6 +265,8 @@ model RssFeed {
   lastPolledAt    DateTime?
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+
+  sourceItems SourceItem[]
 
   @@index([active])
   @@index([lastPolledAt])

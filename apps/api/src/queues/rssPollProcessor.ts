@@ -33,9 +33,35 @@ export async function processRssPollJob(
     const result = await pollService.pollFeed(feedId);
     results = [result];
   } else {
-    // Poll all active feeds
-    console.log(`[RssPollWorker] Polling all active feeds`);
-    results = await pollService.pollAllFeeds();
+    // Get feeds that are due for polling
+    const feedsDue = await pollService.getFeedsDueForPolling();
+    console.log(`[RssPollWorker] Found ${feedsDue.length} feeds due for polling`);
+
+    results = [];
+    for (const feed of feedsDue) {
+      try {
+        console.log(`[RssPollWorker] Polling: ${feed.title}`);
+        const result = await pollService.pollFeed(feed.id);
+        results.push(result);
+
+        // Update lastPolledAt timestamp
+        const { prisma } = await import("@regintel/database");
+        await prisma.rssFeed.update({
+          where: { id: feed.id },
+          data: { lastPolledAt: new Date() },
+        });
+        console.log(`[RssPollWorker] Updated lastPolledAt for ${feed.title}`);
+      } catch (error) {
+        console.error(`[RssPollWorker] Failed to poll feed ${feed.id}:`, error);
+        results.push({
+          feedId: feed.id,
+          feedUrl: feed.url,
+          itemsFound: 0,
+          itemsIngested: 0,
+          errors: [error instanceof Error ? error.message : String(error)],
+        });
+      }
+    }
   }
 
   const totalItemsFound = results.reduce((sum, r) => sum + r.itemsFound, 0);

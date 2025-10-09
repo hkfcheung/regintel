@@ -33,9 +33,10 @@ export class IngestService {
     url: string;
     source?: string;
     type?: string;
+    rssFeedId?: string;
   }): Promise<IngestResult> {
     try {
-      const { url, source, type } = params;
+      const { url, source, type, rssFeedId } = params;
 
       // 1. Validate source domain
       if (!(await this.sourceReader.isAllowedSource(url))) {
@@ -98,6 +99,7 @@ export class IngestService {
           publishedAt: fetchedContent.publishedAt,
           contentHash: fetchedContent.contentHash,
           status: "INTAKE",
+          rssFeedId: rssFeedId || null,
           tags: JSON.stringify([
             `source:${inferredSource}`,
             `type:${inferredType}`,

@@ -36,15 +36,17 @@ export default async function SourcesPage({
   });
 
   // Get counts for filters
-  const statusCounts = await prisma.sourceItem.groupBy({
-    by: ["status"],
-    _count: true,
-  });
-
-  const typeCounts = await prisma.sourceItem.groupBy({
-    by: ["type"],
-    _count: true,
-  });
+  const [totalCount, statusCounts, typeCounts] = await Promise.all([
+    prisma.sourceItem.count({ where }),
+    prisma.sourceItem.groupBy({
+      by: ["status"],
+      _count: true,
+    }),
+    prisma.sourceItem.groupBy({
+      by: ["type"],
+      _count: true,
+    }),
+  ]);
 
   return (
     <main className="min-h-screen p-8 bg-gray-50">
@@ -61,7 +63,7 @@ export default async function SourcesPage({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <p className="text-sm text-gray-600">Total Items</p>
-            <p className="text-2xl font-bold text-gray-900">{sources.length}</p>
+            <p className="text-2xl font-bold text-gray-900">{totalCount}</p>
           </div>
           {statusCounts.slice(0, 3).map((stat) => (
             <div
@@ -96,8 +98,16 @@ export default async function SourcesPage({
               )}
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {sources.map((source) => (
+            <>
+              {totalCount > 50 && (
+                <div className="p-4 bg-blue-50 border-b border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    Showing {sources.length} of {totalCount} items (most recent first)
+                  </p>
+                </div>
+              )}
+              <div className="divide-y divide-gray-200">
+                {sources.map((source) => (
                 <Link
                   key={source.id}
                   href={`/sources/${source.id}`}
@@ -156,7 +166,8 @@ export default async function SourcesPage({
                   </div>
                 </Link>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>

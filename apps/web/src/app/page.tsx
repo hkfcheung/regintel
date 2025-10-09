@@ -1,42 +1,8 @@
-import Link from "next/link";
 import { prisma } from "@regintel/database";
-
-function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-  return `${minutes}m`;
-}
-
-function getNextPollTime(lastPolledAt: Date | null, pollInterval: number): string {
-  const now = new Date();
-
-  if (!lastPolledAt) {
-    // Never polled, show "Now" to indicate it will poll soon
-    return "Now";
-  }
-
-  const nextPoll = new Date(lastPolledAt.getTime() + pollInterval * 1000);
-
-  if (nextPoll <= now) {
-    return "Now";
-  }
-
-  const diff = Math.floor((nextPoll.getTime() - now.getTime()) / 1000 / 60); // minutes
-
-  if (diff < 60) {
-    return `${diff}m`;
-  }
-  const hours = Math.floor(diff / 60);
-  const mins = diff % 60;
-  return `${hours}h ${mins}m`;
-}
+import { HomeContent } from "./home-content";
 
 export default async function HomePage() {
-  // Fetch recent analyzed items
+  // Fetch recent analyzed items (fetch more to support filtering)
   const analyses = await prisma.analysis.findMany({
     include: {
       sourceItem: true,
@@ -44,7 +10,7 @@ export default async function HomePage() {
     orderBy: {
       createdAt: "desc",
     },
-    take: 5,
+    take: 50,
   });
 
   // Fetch RSS feed status
@@ -53,9 +19,110 @@ export default async function HomePage() {
     orderBy: { lastPolledAt: "desc" },
   });
 
+  // Get today's ingestion counts per RSS feed
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const todaysCounts = await prisma.sourceItem.groupBy({
+    by: ["rssFeedId"],
+    where: {
+      createdAt: {
+        gte: today,
+      },
+    },
+    _count: {
+      id: true,
+    },
+  });
+
+  // Create a map of rssFeedId -> count
+  const countsByFeed = new Map<string, number>();
+
+  todaysCounts.forEach((item) => {
+    if (item.rssFeedId) {
+      countsByFeed.set(item.rssFeedId, item._count.id);
+    }
+  });
+
+  // For items without rssFeedId (old items), match by domain
+  const nullCount = todaysCounts.find((item) => item.rssFeedId === null);
+  if (nullCount && nullCount._count.id > 0) {
+    // Get domain-based counts for items without rssFeedId
+    const domainCounts = await prisma.sourceItem.groupBy({
+      by: ["sourceDomain"],
+      where: {
+        createdAt: {
+          gte: today,
+        },
+        rssFeedId: null,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    // Match domains to feeds and add to counts
+    const domainCountMap = new Map(
+      domainCounts.map((item) => [item.sourceDomain, item._count.id])
+    );
+
+    feeds.forEach((feed) => {
+      try {
+        const url = new URL(feed.url);
+        const domain = url.hostname.replace(/^www\./, "");
+
+        const domainCount =
+          domainCountMap.get(url.hostname) ||
+          domainCountMap.get(domain) ||
+          domainCountMap.get(`www.${domain}`) ||
+          0;
+
+        if (domainCount > 0) {
+          const currentCount = countsByFeed.get(feed.id) || 0;
+          countsByFeed.set(feed.id, currentCount + domainCount);
+        }
+      } catch (error) {
+        // Invalid URL, skip
+      }
+    });
+  }
+
+  // Add counts to feeds
+  const feedsWithCounts = feeds.map((feed) => ({
+    ...feed,
+    todaysIngestions: countsByFeed.get(feed.id) || 0,
+  }));
+
+  // Fetch today's source items (for filtered view)
+  const todaysSourceItems = await prisma.sourceItem.findMany({
+    where: {
+      createdAt: {
+        gte: today,
+      },
+      rssFeedId: {
+        not: null,
+      },
+    },
+    include: {
+      analyses: {
+        select: {
+          id: true,
+          summaryMd: true,
+        },
+        take: 1,
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <h1 className="text-4xl font-bold mb-4">
           Regulatory Intelligence Platform
         </h1>
@@ -63,59 +130,11 @@ export default async function HomePage() {
           Curated weekly feed from authoritative sources with actionable insights
         </p>
 
-        <div className="grid gap-6">
-          <Link href="/sources" className="border border-gray-200 rounded-lg p-6 hover:border-gray-300 transition-colors">
-            <h2 className="text-2xl font-semibold mb-2">Browse Source Items</h2>
-            <p className="text-gray-600">View all ingested regulatory content</p>
-          </Link>
-
-          <div className="border border-gray-200 rounded-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4">RSS Feed Status</h2>
-            {feeds.length === 0 ? (
-              <p className="text-gray-600">No active feeds configured</p>
-            ) : (
-              <div className="space-y-3">
-                {feeds.map((feed) => (
-                  <div key={feed.id} className="flex justify-between items-center border-b border-gray-100 last:border-0 pb-3 last:pb-0">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-sm">{feed.title}</h3>
-                      <p className="text-xs text-gray-500">{feed.url}</p>
-                    </div>
-                    <div className="text-right ml-4">
-                      <p className="text-xs text-gray-600">
-                        Poll every {formatDuration(feed.pollInterval)}
-                      </p>
-                      <p className="text-xs font-medium text-blue-600">
-                        Next: {getNextPollTime(feed.lastPolledAt, feed.pollInterval)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="border border-gray-200 rounded-lg p-6">
-            <h2 className="text-2xl font-semibold mb-4">This Week in Regulatory</h2>
-            {analyses.length === 0 ? (
-              <p className="text-gray-600">No analyzed content yet</p>
-            ) : (
-              <div className="space-y-4">
-                {analyses.map((analysis) => (
-                  <div key={analysis.id} className="border-b border-gray-100 last:border-0 pb-4 last:pb-0">
-                    <Link href={`/sources/${analysis.sourceItem.id}`} className="hover:text-blue-600">
-                      <h3 className="font-semibold mb-1">{analysis.sourceItem.title}</h3>
-                    </Link>
-                    <p className="text-sm text-gray-600 mb-2">{analysis.sourceItem.sourceDomain}</p>
-                    <div className="text-sm text-gray-700 prose prose-sm">
-                      {analysis.summaryMd.slice(0, 200)}...
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+        <HomeContent
+          feeds={feedsWithCounts}
+          analyses={analyses}
+          todaysSourceItems={todaysSourceItems}
+        />
       </div>
     </main>
   );

@@ -171,7 +171,7 @@ export default async function AdminPage() {
             {!systemHealth ? (
               <p className="text-gray-600">Unable to load system health</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div>
                   <h3 className="text-sm font-medium text-gray-700 mb-3">Database</h3>
                   <div className="space-y-2">
@@ -191,6 +191,26 @@ export default async function AdminPage() {
                       <span className="text-gray-600">Active Domains:</span>
                       <span className="font-medium">{systemHealth.database.activeDomains}</span>
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">RSS Feed Status</h3>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {systemHealth.feedStatus && systemHealth.feedStatus.length > 0 ? (
+                      systemHealth.feedStatus.map((feed: any) => (
+                        <div key={feed.title} className="flex justify-between text-sm">
+                          <span className="text-gray-600 truncate pr-2" title={feed.title}>
+                            {feed.title.length > 20 ? feed.title.substring(0, 20) + '...' : feed.title}:
+                          </span>
+                          <span className={`font-medium ${feed.todaysIngestions > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                            {feed.todaysIngestions}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">No active feeds</p>
+                    )}
                   </div>
                 </div>
 

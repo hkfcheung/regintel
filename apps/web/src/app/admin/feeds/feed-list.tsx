@@ -27,6 +27,7 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
   const router = useRouter();
   const [feeds, setFeeds] = useState(initialFeeds);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingFeedId, setEditingFeedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [newFeed, setNewFeed] = useState({
@@ -36,6 +37,14 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
     classifications: [] as string[],
     pollInterval: 3600,
   });
+
+  const [editFeed, setEditFeed] = useState<{
+    url: string;
+    title: string;
+    description: string;
+    classifications: string[];
+    pollInterval: number;
+  } | null>(null);
 
   const addFeed = async () => {
     if (!newFeed.url.trim() || !newFeed.title.trim()) {
@@ -144,6 +153,75 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
     }));
   };
 
+  const toggleEditClassification = (classification: string) => {
+    if (!editFeed) return;
+    setEditFeed((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        classifications: prev.classifications.includes(classification)
+          ? prev.classifications.filter((c) => c !== classification)
+          : [...prev.classifications, classification],
+      };
+    });
+  };
+
+  const startEditing = (feed: Feed) => {
+    setEditingFeedId(feed.id);
+    setEditFeed({
+      url: feed.url,
+      title: feed.title,
+      description: feed.description || "",
+      classifications: feed.classifications,
+      pollInterval: feed.pollInterval,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingFeedId(null);
+    setEditFeed(null);
+  };
+
+  const updateFeed = async (id: string) => {
+    if (!editFeed || !editFeed.url.trim() || !editFeed.title.trim()) {
+      alert("URL and Title are required");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`http://localhost:3001/rss/feeds/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...editFeed,
+          description: editFeed.description || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update feed");
+      }
+
+      setEditingFeedId(null);
+      setEditFeed(null);
+      router.refresh();
+    } catch (error) {
+      console.error("Error updating feed:", error);
+      alert("Failed to update feed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatInterval = (seconds: number) => {
+    if (seconds < 3600) {
+      return `${seconds / 60}m`;
+    }
+    const hours = seconds / 3600;
+    return hours % 1 === 0 ? `${hours}h` : `${(seconds / 60).toFixed(0)}m`;
+  };
+
   return (
     <div className="space-y-6">
       {/* Actions */}
@@ -250,6 +328,103 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
         </div>
       )}
 
+      {/* Edit feed form */}
+      {editingFeedId && editFeed && (
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Edit RSS Feed</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Feed URL *
+              </label>
+              <input
+                type="url"
+                value={editFeed.url}
+                onChange={(e) => setEditFeed({ ...editFeed, url: e.target.value })}
+                placeholder="https://example.com/rss.xml"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title *
+              </label>
+              <input
+                type="text"
+                value={editFeed.title}
+                onChange={(e) => setEditFeed({ ...editFeed, title: e.target.value })}
+                placeholder="FDA Pediatric Oncology Announcements"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <input
+                type="text"
+                value={editFeed.description}
+                onChange={(e) => setEditFeed({ ...editFeed, description: e.target.value })}
+                placeholder="RSS feed for pediatric oncology drug approvals and guidance"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Classifications
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {CLASSIFICATION_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => toggleEditClassification(option.value)}
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      editFeed.classifications.includes(option.value)
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Poll Interval (seconds)
+              </label>
+              <input
+                type="number"
+                value={editFeed.pollInterval}
+                onChange={(e) => setEditFeed({ ...editFeed, pollInterval: parseInt(e.target.value) })}
+                min="60"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {editFeed.pollInterval / 60} minutes ({editFeed.pollInterval / 3600} hours)
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => updateFeed(editingFeedId)}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {loading ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={loading}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 disabled:bg-gray-200"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Feed list */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
@@ -300,7 +475,7 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {feed.pollInterval / 3600}h
+                  {formatInterval(feed.pollInterval)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {feed.lastPolledAt
@@ -324,6 +499,12 @@ export function FeedList({ initialFeeds }: { initialFeeds: Feed[] }) {
                     className="text-green-600 hover:text-green-900 mr-3"
                   >
                     Poll
+                  </button>
+                  <button
+                    onClick={() => startEditing(feed)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-3"
+                  >
+                    Edit
                   </button>
                   <button
                     onClick={() => toggleActive(feed.id, feed.active)}

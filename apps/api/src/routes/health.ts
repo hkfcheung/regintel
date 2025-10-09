@@ -62,12 +62,94 @@ export async function healthRoutes(fastify: FastifyInstance) {
       });
 
       // Database counts
-      const [sourceItemCount, analysisCount, feedCount, domainCount] = await Promise.all([
+      const [sourceItemCount, analysisCount, feedCount, domainCount, feeds] = await Promise.all([
         prisma.sourceItem.count(),
         prisma.analysis.count(),
         prisma.rssFeed.count({ where: { active: true } }),
         prisma.allowedDomain.count({ where: { active: true } }),
+        prisma.rssFeed.findMany({
+          where: { active: true },
+          select: {
+            id: true,
+            title: true,
+            url: true,
+          },
+        }),
       ]);
+
+      // Get today's ingestion counts per RSS feed
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todaysCounts = await prisma.sourceItem.groupBy({
+        by: ["rssFeedId"],
+        where: {
+          createdAt: {
+            gte: today,
+          },
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      // Create a map of rssFeedId -> count
+      const countsByFeed = new Map<string, number>();
+
+      todaysCounts.forEach((item) => {
+        if (item.rssFeedId) {
+          countsByFeed.set(item.rssFeedId, item._count.id);
+        }
+      });
+
+      // For items without rssFeedId (old items), match by domain
+      const nullCount = todaysCounts.find((item) => item.rssFeedId === null);
+      if (nullCount && nullCount._count.id > 0) {
+        // Get domain-based counts for items without rssFeedId
+        const domainCounts = await prisma.sourceItem.groupBy({
+          by: ["sourceDomain"],
+          where: {
+            createdAt: {
+              gte: today,
+            },
+            rssFeedId: null,
+          },
+          _count: {
+            id: true,
+          },
+        });
+
+        // Match domains to feeds and add to counts
+        const domainCountMap = new Map(
+          domainCounts.map((item) => [item.sourceDomain, item._count.id])
+        );
+
+        feeds.forEach((feed) => {
+          try {
+            const url = new URL(feed.url);
+            const domain = url.hostname.replace(/^www\./, "");
+
+            const domainCount =
+              domainCountMap.get(url.hostname) ||
+              domainCountMap.get(domain) ||
+              domainCountMap.get(`www.${domain}`) ||
+              0;
+
+            if (domainCount > 0) {
+              const currentCount = countsByFeed.get(feed.id) || 0;
+              countsByFeed.set(feed.id, currentCount + domainCount);
+            }
+          } catch (error) {
+            // Invalid URL, skip
+          }
+        });
+      }
+
+      // Add counts to feeds
+      const feedStatus = feeds.map((feed) => ({
+        title: feed.title,
+        todaysIngestions: countsByFeed.get(feed.id) || 0,
+      }));
 
       // Queue metrics
       const queueNames = ["ingest", "summarize", "rss-poll", "discovery"];
@@ -110,6 +192,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
           activeFeeds: feedCount,
           activeDomains: domainCount,
         },
+        feedStatus,
         queues: queueMetrics,
         redis: redisStatus,
       });

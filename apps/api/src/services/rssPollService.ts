@@ -116,6 +116,7 @@ export class RssPollService {
           const ingestResult = await this.ingest.ingestUrl({
             url: item.url,
             source: feed.title,
+            rssFeedId: feed.id,
           });
 
           if (ingestResult.success) {
