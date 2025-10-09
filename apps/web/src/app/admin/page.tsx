@@ -151,6 +151,36 @@ export default async function AdminPage() {
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Analysis Configuration
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Configure company name, therapeutic area, and analysis filters
+            </p>
+            <a
+              href="/admin/config"
+              className="inline-block bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+            >
+              Manage Config →
+            </a>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              Appearance Settings
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Customize background and visual appearance of the app
+            </p>
+            <a
+              href="/admin/appearance"
+              className="inline-block bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              Customize Appearance →
+            </a>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Audit Logs
             </h2>
             <p className="text-gray-600 mb-4">

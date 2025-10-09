@@ -1,0 +1,8 @@
+# Ignore all uploaded background images
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# But keep this directory in git
+!.gitignore

@@ -120,9 +120,58 @@ export default async function HomePage() {
     },
   });
 
+  // Fetch appearance config
+  const appearanceConfigs = await prisma.appConfig.findMany({
+    where: {
+      category: "appearance",
+    },
+  });
+
+  const backgroundEnabled = appearanceConfigs.find((c) => c.key === "backgroundEnabled")?.value || "true";
+  const backgroundType = appearanceConfigs.find((c) => c.key === "backgroundType")?.value || "gradient";
+  const backgroundGradient = appearanceConfigs.find((c) => c.key === "backgroundGradient")?.value || "from-gray-50 via-blue-50/30 to-teal-50/20";
+  const backgroundCirclesJson = appearanceConfigs.find((c) => c.key === "backgroundCircles")?.value || '[{"size":"w-96 h-96","color":"bg-blue-100/20","position":"-top-40 -right-40"},{"size":"w-80 h-80","color":"bg-teal-100/20","position":"top-1/2 -left-40"},{"size":"w-96 h-96","color":"bg-indigo-100/20","position":"-bottom-40 right-1/3"}]';
+  const backgroundImage = appearanceConfigs.find((c) => c.key === "backgroundImage")?.value || "";
+
+  let backgroundCircles = [];
+  try {
+    backgroundCircles = JSON.parse(backgroundCirclesJson);
+  } catch (e) {
+    console.error("Failed to parse background circles:", e);
+  }
+
   return (
-    <main className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
+    <main className="min-h-screen p-8 relative overflow-hidden">
+      {backgroundEnabled === "true" && (
+        <>
+          {backgroundType === "image" && backgroundImage ? (
+            /* Background image */
+            <div
+              className="absolute inset-0 -z-10 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: `url(${backgroundImage})` }}
+            />
+          ) : (
+            <>
+              {/* Subtle background gradient */}
+              <div className={`absolute inset-0 bg-gradient-to-br ${backgroundGradient} -z-10`} />
+
+              {/* Decorative elements */}
+              {backgroundCircles.length > 0 && (
+                <div className="absolute inset-0 -z-10 overflow-hidden">
+                  {backgroundCircles.map((circle: any, index: number) => (
+                    <div
+                      key={index}
+                      className={`absolute ${circle.size} ${circle.color} ${circle.position} rounded-full blur-3xl`}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      <div className="max-w-7xl mx-auto relative">
         <h1 className="text-4xl font-bold mb-4">
           Regulatory Intelligence Platform
         </h1>
