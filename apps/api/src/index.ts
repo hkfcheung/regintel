@@ -62,7 +62,7 @@ await fastify.register(auditRoutes, { prefix: "/audit" });
 const { sessionRoutes } = await import("./routes/sessions.js");
 await fastify.register(sessionRoutes, { prefix: "/sessions" });
 
-const { analyticsRoutes } = await import("./routes/analytics.js");
+const analyticsRoutes = (await import("./routes/analytics.js")).default;
 await fastify.register(analyticsRoutes, { prefix: "/analytics" });
 
 const { alertsRoutes } = await import("./routes/alerts.js");
