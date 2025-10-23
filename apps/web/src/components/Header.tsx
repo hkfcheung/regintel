@@ -72,6 +72,20 @@ export async function Header() {
                     Bulletin
                   </Link>
                   <Link
+                    href="/graph"
+                    className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Graph
+                  </Link>
+                  <a
+                    href="http://localhost:3002"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Analytics
+                  </a>
+                  <Link
                     href="/admin"
                     className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                   >

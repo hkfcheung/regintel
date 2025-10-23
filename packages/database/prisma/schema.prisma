@@ -330,3 +330,125 @@ enum AlertFrequency {
   BIWEEKLY
   MONTHLY
 }
+
+// ============================================
+// Graph Configuration (Neo4j Integration)
+// ============================================
+
+model GraphConfig {
+  id              String                @id @default(cuid())
+  name            String                @unique // User-friendly name
+  profile         String                @db.Text // Industry/company/focus description
+  goals           Json                  @default("[]") // Array of goal strings
+  context         String?               @db.Text // Optional context (populations, biomarkers, etc.)
+  trustedSources  Json                  @default("[]") // Array of source identifiers
+  pgSchemaSnapshot Json                 @default("{}") // Snapshot of PG views/columns at config time
+  constraints     Json                  @default("{}") // Configuration constraints/toggles
+  status          GraphConfigStatus     @default(DRAFT)
+  activeVersion   String?               // Points to active version ID
+  createdBy       String
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  versions        GraphConfigVersion[]
+  syncRuns        GraphSyncRun[]
+
+  @@index([status])
+  @@index([createdBy])
+  @@map("graph_configs")
+}
+
+enum GraphConfigStatus {
+  DRAFT          // Being designed
+  PROPOSED       // AI proposal generated
+  STAGING        // Deployed to staging
+  PRODUCTION     // Promoted to production
+  ARCHIVED       // No longer active
+}
+
+model GraphConfigVersion {
+  id                String           @id @default(cuid())
+  configId          String
+  version           Int              // Incremental version number
+  summary           Json             @default("[]") // Array of summary bullet points
+  graphModel        Json             @default("{}") // {nodes: [], relationships: []}
+  pgToGraphMapping  Json             @default("{}") // Mapping rules (JSON)
+  cypherTemplates   Json             @default("{}") // {nodes: {}, relationships: {}}
+  bloomSuggestions  Json             @default("{}") // Bloom perspective config
+  neodashSuggestions Json            @default("{}") // NeoDash starter cards
+  qaQueries         Json             @default("[]") // Array of QA Cypher queries
+  deployedToStaging DateTime?
+  deployedToProd    DateTime?
+  createdAt         DateTime         @default(now())
+
+  config          GraphConfig        @relation(fields: [configId], references: [id], onDelete: Cascade)
+  syncRuns        GraphSyncRun[]
+
+  @@unique([configId, version])
+  @@index([configId])
+  @@map("graph_config_versions")
+}
+
+model GraphSyncRun {
+  id                String              @id @default(cuid())
+  configId          String
+  versionId         String
+  runType           GraphSyncRunType
+  targetEnvironment GraphEnvironment
+  status            GraphSyncStatus
+  dryRun            Boolean             @default(false)
+  diffReport        Json?               @default("{}") // {nodes: {create, update, noop}, rels: {...}}
+  batchSize         Int                 @default(100)
+  totalBatches      Int?
+  completedBatches  Int                 @default(0)
+  checkpointData    Json?               @default("{}") // For resuming
+  errorLog          Json?               @default("[]") // Array of error messages
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdBy         String
+  createdAt         DateTime            @default(now())
+
+  config          GraphConfig         @relation(fields: [configId], references: [id], onDelete: Cascade)
+  version         GraphConfigVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([configId])
+  @@index([versionId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("graph_sync_runs")
+}
+
+enum GraphSyncRunType {
+  BACKFILL          // One-time historical backfill
+  INCREMENTAL       // Ongoing sync of new/updated records
+  VALIDATION        // QA queries only
+}
+
+enum GraphEnvironment {
+  STAGING
+  PRODUCTION
+}
+
+enum GraphSyncStatus {
+  PENDING           // Queued
+  RUNNING           // In progress
+  COMPLETED         // Finished successfully
+  FAILED            // Error occurred
+  CANCELLED         // Manually stopped
+}
+
+model GraphAudit {
+  id            String   @id @default(cuid())
+  configId      String
+  versionId     String?
+  action        String   // e.g., "config.created", "version.deployed", "sync.completed"
+  actor         String   // User ID
+  metadata      Json     @default("{}") // Additional context
+  createdAt     DateTime @default(now())
+
+  @@index([configId])
+  @@index([action])
+  @@index([actor])
+  @@index([createdAt])
+  @@map("graph_audits")
+}

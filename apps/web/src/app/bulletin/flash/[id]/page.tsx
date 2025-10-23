@@ -14,10 +14,11 @@ function formatDate(date: Date | null): string {
 export default async function FlashArticlePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const { id } = await params;
   const item = await prisma.sourceItem.findUnique({
-    where: { id: params.id },
+    where: { id },
     include: {
       analyses: {
         select: {

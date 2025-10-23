@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "@regintel/database";
 import { getSmartBucketService } from "../services/smartBucket.js";
+import { graphBackfillService } from "../services/graphBackfillService.js";
 
 const approveSchema = z.object({
   sourceItemId: z.string(),
@@ -84,6 +85,18 @@ export async function reviewRoutes(fastify: FastifyInstance) {
         });
 
         fastify.log.info(`Auto-stored document ${sourceItemId} in knowledge base`);
+      }
+
+      // Automatically sync to Neo4j graph database
+      try {
+        const backfillResult = await graphBackfillService.backfillAll({
+          environment: "STAGING",
+          dryRun: false,
+        });
+        fastify.log.info(`Auto-synced to Neo4j graph: ${JSON.stringify(backfillResult.summary)}`);
+      } catch (graphError: any) {
+        // Log error but don't fail the approval
+        fastify.log.error(`Failed to sync to Neo4j graph: ${graphError.message}`);
       }
 
       return reply.send({ message: "Document approved and stored in knowledge base", sourceItem });

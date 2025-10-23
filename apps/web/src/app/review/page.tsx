@@ -216,7 +216,9 @@ export default async function ReviewPage({
                                 <div>
                                   <span className="font-medium text-blue-800">Dosing: </span>
                                   <span className="text-blue-900">
-                                    {modelMeta.pediatric_details.dosing}
+                                    {typeof modelMeta.pediatric_details.dosing === 'object'
+                                      ? JSON.stringify(modelMeta.pediatric_details.dosing, null, 2)
+                                      : modelMeta.pediatric_details.dosing}
                                   </span>
                                 </div>
                               )}
@@ -231,8 +233,10 @@ export default async function ReviewPage({
                               {modelMeta.pediatric_details.efficacy_data && (
                                 <div className="col-span-2">
                                   <span className="font-medium text-blue-800">Efficacy: </span>
-                                  <span className="text-blue-900">
-                                    {modelMeta.pediatric_details.efficacy_data}
+                                  <span className="text-blue-900 whitespace-pre-wrap font-mono text-xs">
+                                    {typeof modelMeta.pediatric_details.efficacy_data === 'object'
+                                      ? JSON.stringify(modelMeta.pediatric_details.efficacy_data, null, 2)
+                                      : modelMeta.pediatric_details.efficacy_data}
                                   </span>
                                 </div>
                               )}

@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  metabase:
+    image: metabase/metabase:latest
+    container_name: regintel-metabase
+    ports:
+      - "3002:3000"
+    environment:
+      # Use H2 database for Metabase's own data (simplest for local dev)
+      MB_DB_TYPE: h2
+      MB_DB_FILE: /metabase-data/metabase.db
+
+      # Java options for better performance
+      JAVA_OPTS: "-Xmx512m"
+
+      # Optional: Set admin email (you'll set password on first run)
+      # MB_ADMIN_EMAIL: admin@regintel.local
+    volumes:
+      # Persist Metabase data (dashboards, questions, settings)
+      - metabase-data:/metabase-data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  metabase-data:
+    driver: local
