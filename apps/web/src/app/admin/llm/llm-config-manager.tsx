@@ -31,6 +31,7 @@ export function LlmConfigManager() {
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
   const [editingConfig, setEditingConfig] = useState<LlmConfig | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -54,9 +55,19 @@ export function LlmConfigManager() {
     try {
       const response = await fetch("/api/proxy?endpoint=/llm/configs");
       const data = await response.json();
-      setConfigs(data);
+
+      if (data.error) {
+        console.error("API error:", data.error);
+        setApiError(data.error);
+        setConfigs([]);
+      } else {
+        setApiError(null);
+        setConfigs(data);
+      }
     } catch (error) {
       console.error("Failed to load configs:", error);
+      setApiError("Failed to connect to API server");
+      setConfigs([]);
     } finally {
       setLoading(false);
     }
@@ -66,10 +77,16 @@ export function LlmConfigManager() {
     try {
       const response = await fetch("/api/proxy?endpoint=/llm/ollama/health");
       const data = await response.json();
-      setOllamaHealthy(data.healthy);
 
-      if (data.healthy) {
-        loadOllamaModels();
+      if (data.error) {
+        console.error("API error:", data.error);
+        setOllamaHealthy(false);
+      } else {
+        setOllamaHealthy(data.healthy);
+
+        if (data.healthy) {
+          loadOllamaModels();
+        }
       }
     } catch (error) {
       console.error("Failed to check Ollama health:", error);
@@ -192,6 +209,25 @@ export function LlmConfigManager() {
 
   return (
     <div className="space-y-6">
+      {/* API Error */}
+      {apiError && (
+        <div className="p-4 rounded-lg border bg-red-50 border-red-200">
+          <div className="flex items-start gap-3">
+            <div className="text-red-600 text-xl">⚠️</div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-800">API Connection Error</h3>
+              <p className="text-sm text-red-700 mt-1">{apiError}</p>
+              <p className="text-sm text-red-600 mt-2">
+                Please ensure the API server is running on port 3001:
+              </p>
+              <pre className="mt-2 p-2 bg-red-100 rounded text-xs text-red-900">
+                cd apps/api && npm run dev
+              </pre>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ollama Status */}
       <div className={`p-4 rounded-lg border ${ollamaHealthy ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
         <div className="flex items-center justify-between">
