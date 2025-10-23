@@ -77,14 +77,12 @@ export async function Header() {
                   >
                     Graph
                   </Link>
-                  <a
-                    href="http://localhost:3002"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href="/analytics"
                     className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     Analytics
-                  </a>
+                  </Link>
                   <Link
                     href="/admin"
                     className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
