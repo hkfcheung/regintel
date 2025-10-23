@@ -71,6 +71,9 @@ await fastify.register(alertsRoutes, { prefix: "/alerts" });
 const { graphRoutes } = await import("./routes/graph.js");
 await fastify.register(graphRoutes, { prefix: "/graph" });
 
+const { llmRoutes } = await import("./routes/llm.js");
+await fastify.register(llmRoutes, { prefix: "/llm" });
+
 // Start server
 const start = async () => {
   try {

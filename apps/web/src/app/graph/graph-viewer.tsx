@@ -39,6 +39,11 @@ export function GraphViewer() {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [isFrozen, setIsFrozen] = useState(false);
   const [scope, setScope] = useState<"pediatric_oncology" | "oncology" | "all">("pediatric_oncology");
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatContext, setChatContext] = useState<"graph" | "postgres" | "both">("both");
   const graphRef = useRef<any>(null);
 
   // Color scheme for different node types
@@ -236,6 +241,49 @@ export function GraphViewer() {
     }
   };
 
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput("");
+    setChatMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setChatLoading(true);
+
+    try {
+      const response = await fetch("/api/proxy?endpoint=/llm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: userMessage,
+          context: chatContext,
+          history: chatMessages,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get response");
+      }
+
+      const data = await response.json();
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.answer },
+      ]);
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Sorry, I encountered an error. Please make sure an LLM is configured in the admin panel.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Graph Container */}
@@ -317,6 +365,18 @@ export function GraphViewer() {
                 title="Unpin all nodes and recalculate layout"
               >
                 🔄 Reset Layout
+              </button>
+
+              <button
+                onClick={() => setShowChat(!showChat)}
+                className={`mt-6 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  showChat
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-gray-600 text-white hover:bg-gray-700"
+                }`}
+                title="Toggle chat with graph and database"
+              >
+                {showChat ? "💬 Close Chat" : "💬 Open Chat"}
               </button>
             </div>
 
@@ -662,6 +722,108 @@ export function GraphViewer() {
           </p>
         </div>
       </div>
+
+      {/* Chat Panel */}
+      {showChat && (
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Database Chat Assistant
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Ask questions about the graph or PostgreSQL database
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={chatContext}
+                  onChange={(e) => setChatContext(e.target.value as any)}
+                  className="text-sm rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+                >
+                  <option value="both">Both Databases</option>
+                  <option value="graph">Graph Only</option>
+                  <option value="postgres">PostgreSQL Only</option>
+                </select>
+                <button
+                  onClick={() => {
+                    setChatMessages([]);
+                    setChatInput("");
+                  }}
+                  className="text-sm text-gray-600 hover:text-gray-800 px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {/* Messages */}
+            <div className="mb-4 space-y-4 max-h-[400px] overflow-y-auto">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="mb-2">💬 Start a conversation!</p>
+                  <p className="text-sm">
+                    Try asking: "What drugs are in the database?" or "Show me all
+                    trials for leukemia"
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${
+                      msg.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                        msg.role === "user"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-900"
+                      }`}
+                    >
+                      <pre className="whitespace-pre-wrap font-sans text-sm">
+                        {msg.content}
+                      </pre>
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 text-gray-900 rounded-lg px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-pulse">Thinking...</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <form onSubmit={handleChatSubmit} className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask a question about the data..."
+                className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500"
+                disabled={chatLoading}
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatInput.trim()}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

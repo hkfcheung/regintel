@@ -181,6 +181,21 @@ export default async function AdminPage() {
 
           <div className="bg-white rounded-lg border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              LLM Configuration
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Configure LLM models for graph and database chat (Ollama, OpenAI, etc.)
+            </p>
+            <a
+              href="/admin/llm"
+              className="inline-block bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+            >
+              Manage LLMs →
+            </a>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
               Audit Logs
             </h2>
             <p className="text-gray-600 mb-4">
