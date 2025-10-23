@@ -105,6 +105,16 @@ export function LlmConfigManager() {
   };
 
   const handleCreate = async () => {
+    // Validate required fields
+    if (!formData.name.trim()) {
+      alert("Please enter a name for the configuration");
+      return;
+    }
+    if (!formData.model.trim()) {
+      alert("Please select a model");
+      return;
+    }
+
     try {
       const response = await fetch("/api/proxy?endpoint=/llm/configs", {
         method: "POST",
@@ -112,19 +122,33 @@ export function LlmConfigManager() {
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error("Failed to create config");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create config");
+      }
 
       await loadConfigs();
       setShowDialog(false);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create config:", error);
-      alert("Failed to create configuration");
+      alert(`Failed to create configuration: ${error.message}`);
     }
   };
 
   const handleUpdate = async () => {
     if (!editingConfig) return;
+
+    // Validate required fields
+    if (!formData.name.trim()) {
+      alert("Please enter a name for the configuration");
+      return;
+    }
+    if (!formData.model.trim()) {
+      alert("Please select a model");
+      return;
+    }
 
     try {
       const response = await fetch(
@@ -136,15 +160,19 @@ export function LlmConfigManager() {
         }
       );
 
-      if (!response.ok) throw new Error("Failed to update config");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update config");
+      }
 
       await loadConfigs();
       setShowDialog(false);
       setEditingConfig(null);
       resetForm();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to update config:", error);
-      alert("Failed to update configuration");
+      alert(`Failed to update configuration: ${error.message}`);
     }
   };
 
@@ -230,18 +258,42 @@ export function LlmConfigManager() {
 
       {/* Ollama Status */}
       <div className={`p-4 rounded-lg border ${ollamaHealthy ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
             <h3 className="font-semibold">Ollama Status</h3>
-            <p className="text-sm text-gray-600">
-              {ollamaHealthy ? '✅ Connected' : '⚠️ Not connected'}
+            <p className="text-sm text-gray-600 mt-1">
+              {ollamaHealthy ? '✅ Connected to http://localhost:11434' : '⚠️ Not connected'}
             </p>
+            {ollamaHealthy && ollamaModels.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-gray-700 mb-2">
+                  Available Models ({ollamaModels.length}):
+                </p>
+                <div className="space-y-1">
+                  {ollamaModels.map((model) => (
+                    <div key={model.name} className="flex items-center gap-2 text-xs">
+                      <span className="font-mono bg-white px-2 py-1 rounded border border-gray-300">
+                        {model.name}
+                      </span>
+                      {configs.some(c => c.model === model.name && c.active) && (
+                        <span className="text-green-600 font-medium">✓ Configured</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {!ollamaHealthy && (
+              <div className="mt-2 text-xs text-gray-600">
+                <p className="mb-1">To use Ollama:</p>
+                <pre className="bg-yellow-100 p-2 rounded">
+                  ollama serve
+                  <br />
+                  ollama pull llama3.2
+                </pre>
+              </div>
+            )}
           </div>
-          {ollamaHealthy && ollamaModels.length > 0 && (
-            <div className="text-sm text-gray-600">
-              {ollamaModels.length} model{ollamaModels.length !== 1 ? 's' : ''} available
-            </div>
-          )}
         </div>
       </div>
 

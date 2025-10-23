@@ -138,6 +138,19 @@ export async function llmRoutes(fastify: FastifyInstance) {
       return reply.send(config);
     } catch (error: any) {
       fastify.log.error("Error creating LLM config:", error);
+
+      // Handle Zod validation errors
+      if (error.name === "ZodError") {
+        return reply.status(400).send({
+          error: "Validation failed: " + error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(", ")
+        });
+      }
+
+      // Handle Prisma unique constraint errors
+      if (error.code === "P2002") {
+        return reply.status(400).send({ error: "A configuration with this name already exists" });
+      }
+
       return reply.status(500).send({ error: error.message });
     }
   });
